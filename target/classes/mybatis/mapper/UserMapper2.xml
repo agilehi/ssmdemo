@@ -305,6 +305,7 @@
         sql：抽取可重用的sql片段。方便其他sql语句标签里面直接应用
         这里面不支持使用#{}来取值
     -->
+
     <sql id="selectColumn">
         <!--<if test="${ex_column}" />这里面也能写if等标签，使用内置的两个变量，如果在include处使用的时候定义了属性和值，这里面也能使用-->
         uid,name,password,age,email,address,dept_id
