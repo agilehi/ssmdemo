@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:aop="http://www.springframework.org/schema/aop"
+       xmlns:tx="http://www.springframework.org/schema/tx"
+       xmlns:mybatis-spring="http://mybatis.org/schema/mybatis-spring"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://www.springframework.org/schema/aop https://www.springframework.org/schema/aop/spring-aop.xsd
+       http://www.springframework.org/schema/context https://www.springframework.org/schema/context/spring-context.xsd
+       http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx.xsd http://mybatis.org/schema/mybatis-spring http://mybatis.org/schema/mybatis-spring.xsd">
+
+    <!--
+        如果想扫描多个包，可以使用逗号分隔开
+        或者写包的上层目录，这样其子包都能被扫描
+    -->
+    <context:component-scan base-package="com.suftz.ssmdemo">
+        <context:exclude-filter type="annotation" expression="org.springframework.stereotype.Controller" />
+        <context:exclude-filter type="annotation" expression="org.springframework.web.bind.annotation.ControllerAdvice" />
+    </context:component-scan>
+    <context:property-placeholder location="classpath:jdbc.properties" />
+    <!--配置数据库连接池信息，获取数据源对象-->
+    <bean id="dataSource" class="com.alibaba.druid.pool.DruidDataSource">
+        <property name="driverClassName" value="${prop.driverClass}"></property>
+        <property name="url" value="${prop.url}"></property>
+        <property name="username" value="${prop.username}"></property>
+        <property name="password" value="${prop.password}"></property>
+        <property name="minEvictableIdleTimeMillis" value="${prop.minEvictableIdleTimeMillis}"></property>
+        <property name="validationQuery" value="${prop.validationQuery}"></property>
+    </bean>
+
+    <bean id="sqlSessionFactory" class="org.mybatis.spring.SqlSessionFactoryBean">
+        <property name="dataSource" ref="dataSource"></property>
+        <property name="typeAliasesPackage"  value="com.suftz.ssmdemo.bean"/><!--配置mapper别名扫描包-->
+        <property name="mapperLocations" value="classpath:mybatis/mapper/*.xml"></property>
+        <property name="configLocation" value="classpath:mybatis-config.xml"></property>
+    </bean>
+
+    <!--配置可以批量执行的sqlSession-->
+    <bean id="sqlSessionTemplate" class="org.mybatis.spring.SqlSessionTemplate">
+        <constructor-arg name="sqlSessionFactory" ref="sqlSessionFactory"></constructor-arg>
+        <constructor-arg name="executorType" value="BATCH"></constructor-arg>
+    </bean>
+
+    <!--扫描所有的mapper接口-->
+    <mybatis-spring:scan base-package="com.suftz.ssmdemo.mapper"></mybatis-spring:scan>
+
+    <!--事务管理器-->
+    <bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+        <property name="dataSource" ref="dataSource"></property>
+    </bean>
+    <!--配置通知-->
+    <tx:advice id="txadvice">
+        <!--配置事务参数-->
+        <tx:attributes>
+            <tx:method name="add*" propagation="REQUIRED" isolation="REPEATABLE_READ" read-only="false" timeout="4"  />
+            <tx:method name="get"  read-only="true" />
+        </tx:attributes>
+    </tx:advice>
+
+    <!--配置切入点和切面-->
+    <aop:config>
+        <!--配置切入点-->
+        <aop:pointcut id="pointcut" expression="execution(* com.suftz.ssmdemo.service.*.*(..))" />
+        <!--配置切面-->
+        <aop:advisor advice-ref="txadvice" pointcut-ref="pointcut" />
+    </aop:config>
+
+</beans>

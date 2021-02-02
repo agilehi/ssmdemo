@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+    namespace:名称空间
+    id:sql语句唯一标识
+    resultType:返回值类型
+    #{uid}:占位符,从传参中获取参数值放入到sql中
+-->
+<mapper namespace="com.suftz.ssmdemo.mapper.UserMapper">
+
+    <!--对象属性封装-->
+    <resultMap type="com.suftz.ssmdemo.bean.User" id="MyUser">
+        <!--定义主键列的封装规则
+            id定义主键，底层会有优化
+            column:指定那一列
+            property:指定对应的javaBean属性
+        -->
+        <!--定义主键列-->
+        <id column="uid" property="uid" />
+        <!--定义普通列封装规则-->
+        <result column="name" property="name" />
+        <!--其他不知道的列会自动封装-->
+    </resultMap>
+    <!--resultMap和resultType只能二选一来规定数据库表的记录，怎么来映射到Java类中-->
+    <select id="getUserByUid2" resultMap="MyUser" databaseId="mysql">
+    select * from user where uid = #{uid}
+    </select>
+
+    <!--级联对象，关联对象封装-->
+    <resultMap type="com.suftz.ssmdemo.bean.User" id="MyDiffUser">
+        <id column="uid" property="uid" />
+        <result column="name" property="name" />
+        <result column="age" property="age" />
+        <result column="email" property="email" />
+        <result column="address" property="address" />
+        <association property="dept" javaType="com.suftz.ssmdemo.bean.Department">
+            <id column="dept_id" property="id" />
+            <result column="dept_name" property="name" />
+        </association>
+    </resultMap>
+    <select id="getUserAndDept" resultMap="MyDiffUser">
+        select `user`.*,department.name dept_name from user INNER JOIN department on department.id=`user`.dept_id where `user`.uid=#{uid}
+    </select>
+
+
+    <!--级联对象，关联对象封装,分步查询-->
+    <resultMap type="com.suftz.ssmdemo.bean.User" id="MyDiffUser2">
+        <id column="uid" property="uid" />
+        <result column="name" property="name" />
+        <result column="password" property="password" />
+        <result column="age" property="age" />
+        <result column="email" property="email" />
+        <result column="address" property="address" />
+        <!--association定义关联对象的封装规则
+            select:表明当前属性是调用select指定的方法查出的结果
+            column:指定将哪一列的值传给这个方法
+        -->
+        <association property="dept" select="com.suftz.ssmdemo.mapper.DepartmentMapper.getDeptById" column="dept_id">
+        </association>
+    </resultMap>
+    <select id="getUserAndDept2" resultMap="MyDiffUser2">
+        select * from user INNER JOIN department on department.id=`user`.dept_id where `user`.uid=#{uid}
+    </select>
+
+    <select id="selectUser" resultType="com.suftz.ssmdemo.bean.User">
+    select * from user where uid = #{uid}
+  </select>
+
+    <select id="getUserByDeptId" resultType="com.suftz.ssmdemo.bean.User" databaseId="mysql">
+    select * from user where dept_id = #{dept_id}
+  </select>
+
+    <select id="getUserByUid" resultType="com.suftz.ssmdemo.bean.User" databaseId="mysql">
+    select * from user where uid = #{uid}
+  </select>
+
+    <!--mysql支持自增主键，自增主键值的获取，mybatis也是利用statement.getGenreatedKeys(),
+        useGeneratedKeys="true",使用自增主键获取主键值策略
+        keyProperty:指定对应的主键属性，也就是mybatis获取到主键值以后，将这个值封装给javaBean的哪个属性
+    -->
+
+    <insert id="addUser" useGeneratedKeys="true" keyProperty="uid">
+        insert into user(name,age,email,address,dept_id) values (#{name},#{age},#{email},#{address},#{dept.id})
+    </insert>
+
+    <!--
+    Oracle不支持自增，Oracle使用序列来模拟自增
+    每次插入的数据的主键是从序列中拿到的值，
+    -->
+    <insert id="addUser12" useGeneratedKeys="true" keyProperty="uid" databaseId="oracle">
+        <!--
+            keyProperty:查出的主键值封装给javaBean的哪个属性
+            order="BEFORE":当然sql在插入sql之前运行
+                  "AFTER" :当前sql在插入sql之后运行
+            resultType：查出的数据的返回值类型
+        -->
+        <selectKey keyProperty="uid" order="BEFORE" resultType="Integer">
+            select user_seq.nextval from dual
+        </selectKey>
+        insert into user(uid,name,password,age,email,address) values (#{uid},#{name},#{password},#{age},#{email},#{address})
+
+        <!--
+        order=after的情况，此时可以先插入，然后返回的时候去查当前的序列值
+        <selectKey keyProperty="uid" order="AFTER" resultType="Integer">
+            select user_seq.currval from dual
+        </selectKey>
+        insert into user(uid,name,password,age,email,address) values (user_seq.nextval,#{name},#{password},#{age},#{email},#{address})
+        -->
+
+    </insert>
+
+    <delete id="deleteUserByUid">
+        delete u from user u where u.uid=#{uid}
+    </delete>
+
+    <update id="updateUser">
+        update user set name=#{name},age=#{age},email=#{email},address=#{address},dept_id=#{dept.id} where uid=#{uid}
+    </update>
+    <!--sql中的参数:
+        1.单个参数，mybatis不会做特殊处理
+        #{参数名}，取出参数值，甚至整个参数名随便写都可以，反正就只有一个参数
+
+        2.多个参数,mybatis会特殊处理
+        多个餐宿会被封装到一个map
+        #{}就是从map中获取指定的key的值
+        而key：param1,param2,...,paramN
+        比如接口定义是getUserByUidAndName(Integer uid,String name)
+        sql语句：select * from user where uid=#{uid} and name=#{name}   这样是查不到数据的，而且会报错，需要写成#{param1},#{param2}
+
+        上述方式明显不合理，使用起来很麻烦，所以可以使用命名参数，明确告诉指定封装参数时map的可以
+        做法：在接口参数列表里面，对参数使用getUserByUidAndName(@Param("uid") Integer uid,@Param("name") String name)
+
+        3. POJO
+        如果多个参数正好是业务逻辑的数据模型，直接传入POJO就可以了
+        然后在sql语句中直接使用#{属性名}就能取值
+
+        4. Map
+        如果多个参数不一定都是POJO,则也可以直接把参数放在map中传入，
+        然后在sql语句中直接使用#{key}就能取出map中对应key的value值
+
+        5. 如果多个参数不是业务模型的数据，但是经常要使用，比如分页，则可以编写一个TO(Transfer Object)数据传输对象
+        page<T>{
+            Integer totalRows;
+            Integer currentPage;
+            Integer totalPage;
+            Integer pageRows;
+            List<T> list;
+        }
+
+        取值示例：
+        1. public User getUser(@Param("uid") Integer uid,String name)
+           取值：uid==> #{uid/param1}    name==> #{name/param2}
+        2. public User getUser(Integer uid,@Param("u") User user)
+           取值：uid==> #{param1}        name==> #{param2.name/u.name}
+
+        3. 如果是Collection类型或者是数组，也会被特殊处理，封装到map中
+           public User getUser(List<User> uids)
+           取值：取出第一个uid的值    #{list[0]}
+
+
+       参数处理${}  #{}的区别
+       #{}：是以预编译的形式，将参数设置到sql语句中，PreparedStatement,防止sql注入
+       ${}：取出的值直接拼接在sql语句中，会有安全问题
+       大多数情况下，都是使用#{}来进行参数传递
+       但是，原生sql并不是支持所有地方都能使用占位符的，在不支持占位符的地方就可以使用${}来传递参数，比如表名
+       想要查出每年的数据，而每年的数据都单独在每个表里，表的名字是按照规则命名的，比如2020_report,2021_report    则可以${year}_report
+        还有按照不同的排序规则来排序   order by ${uid} asc
+
+
+
+        #{}的更高级用法
+        规定参数的一些规则：
+        javaType,jdbcType,mode(存储过程)，numericScale,resultMap,typeHandler,jdbcTypeName,expression
+        jdbcType通常需要在某种特定的条件下被设置：
+        在数据为null的时候，有些数据库不能不能识别mybatis对null的默认处理，比如Oracle不认识
+        默认null是Jdbc OTHER无效的类型，因为mybatis对所有的null都映射的是原生Jdbc的OTHER类型，此时如果操作oracle数据库就需要设置该值
+        解决：
+        #{字段,jdbcType=OTHER}
+        #在全局配置文件的settings里面，设置<setting name="jdbcTypeForNull" value="NULL" />
+
+    -->
+
+<!--    &lt;!&ndash;返回List集合，resultType仍是定义的bean类型&ndash;&gt;-->
+<!--    <select id="getAllUser" resultType="com.suftz.ssmdemo.bean.User">-->
+<!--        select `user`.*,department.name dept_name from user left JOIN department on department.id=`user`.dept_id-->
+<!--    </select>-->
+
+    <!--级联对象，关联对象封装-->
+    <resultMap type="com.suftz.ssmdemo.bean.User" id="MyAllUser">
+        <id column="uid" property="uid" />
+        <result column="name" property="name" />
+        <result column="age" property="age" />
+        <result column="email" property="email" />
+        <result column="address" property="address" />
+        <association property="dept" javaType="com.suftz.ssmdemo.bean.Department">
+            <id column="dept_id" property="id" />
+            <result column="dept_name" property="name" />
+        </association>
+    </resultMap>
+    <select id="getAllUser" resultMap="MyAllUser">
+        select `user`.*,department.name dept_name from user left JOIN department on department.id=`user`.dept_id order by uid
+    </select>
+
+
+
+    <!--返回Map集合，resultType定义的map类型-->
+    <select id="getUserMapByUid" resultType="map">
+        select * from user where uid=#{uid}
+    </select>
+
+    <!--返回List集合，resultType仍是定义的bean类型-->
+    <select id="getAllUserToMap" resultType="com.suftz.ssmdemo.bean.User">
+        select * from user
+    </select>
+</mapper>
+
